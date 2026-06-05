@@ -1,11 +1,16 @@
 package com.park.sales.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.park.sales.common.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
@@ -25,6 +30,7 @@ public class OaApiClient {
 
     private final RestTemplate restTemplate;
     private final ConfigService configService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.oa.api-base-url:}")
     private String defaultOaApiUrl;
@@ -49,6 +55,71 @@ public class OaApiClient {
     /** OA 是否可用（配置了地址） */
     public boolean isConfigured() {
         return !getOaApiUrl().isEmpty();
+    }
+
+    /**
+     * 通过 OA 单点登录校验账号密码，调用 OA 的 /open-api/sso/login（form 表单）。
+     * 参照 hr- 仓库 SsoService.ssoLogin 的 OA 调用部分。
+     *
+     * @return OA 返回的 data 节点（含 username/token/realName/avatar）
+     * @throws BusinessException OA 校验失败或服务不可用时抛出，message 为 OA 返回的提示
+     */
+    public JsonNode ssoLogin(String username, String password) {
+        String base = getOaApiUrl();
+        if (base.isEmpty()) {
+            throw new BusinessException(500, "未配置 OA 地址，无法进行单点登录");
+        }
+        String url = base + "/open-api/sso/login";
+        log.info("[OaApiClient.ssoLogin] >>> POST {} username={}", url, username);
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("username", username);
+            params.add("password", password);
+            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(params, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (root.has("code") && root.get("code").asInt() == 200) {
+                return root.get("data");
+            }
+            String msg = root.has("message") ? root.get("message").asText() : "OA 登录失败";
+            throw new BusinessException(400, msg);
+        } catch (BusinessException be) {
+            throw be;
+        } catch (Exception e) {
+            log.error("[OaApiClient.ssoLogin] OA 单点登录失败: {} ({})", e.getMessage(), e.getClass().getSimpleName());
+            throw new BusinessException(500, "OA 单点登录服务不可用: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 校验 OA Token 有效性，调用 OA 的 /open-api/sso/validate（Bearer）。
+     * 参照 hr- 仓库 SsoService.validateToken。
+     *
+     * @return OA 返回的 data 节点（含 valid/username/realName/avatar），异常时返回 null
+     */
+    public JsonNode validateToken(String token) {
+        String base = getOaApiUrl();
+        if (base.isEmpty() || token == null || token.isEmpty()) {
+            return null;
+        }
+        String url = base + "/open-api/sso/validate";
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + token);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (root.has("code") && root.get("code").asInt() == 200) {
+                return root.get("data");
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("[OaApiClient.validateToken] OA Token 校验异常: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

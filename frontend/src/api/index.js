@@ -5,6 +5,12 @@ export const authApi = {
   me: () => request.get('/auth/me')
 }
 
+// SSO 单点登录（对接外部 OA 系统），参照 hr- 仓库
+export const ssoApi = {
+  login: (data) => request.post('/sso/login', data),
+  autoLogin: (data) => request.post('/sso/auto-login', data)
+}
+
 export const factoryUnitApi = {
   page: (params) => request.get('/factory-units', { params }),
   create: (data) => request.post('/factory-units', data),

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { ssoApi } from '../api'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -20,6 +21,11 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('username', this.username)
       localStorage.setItem('realName', this.realName || '')
       localStorage.setItem('roles', JSON.stringify(this.roles))
+    },
+    // OA 单点登录自动登录：用 OA 的 sso_token 换取本系统登录态
+    async ssoAutoLogin(token) {
+      const res = await ssoApi.autoLogin({ token })
+      this.setLogin(res.data)
     },
     logout() {
       this.token = ''

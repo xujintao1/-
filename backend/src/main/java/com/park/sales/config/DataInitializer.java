@@ -42,6 +42,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void seedConfigs() {
         seedConfig("oa_integration", "oa_enabled", "false");
+        seedConfig("oa_integration", "oa_sso_enabled", "false");
         seedConfig("oa_integration", "oa_api_url", "");
         seedConfig("oa_integration", "oa_callback_url", "");
         seedConfig("oa_integration", "contract_workflow_type", "CONTRACT_APPROVAL");

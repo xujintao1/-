@@ -38,10 +38,16 @@
     <div class="login-box">
       <div class="login-header">
         <h1 class="title">销售认购系统</h1>
-        <p class="subtitle">产业园厂房销售认购管理平台</p>
+        <p class="subtitle">{{ ssoChecking ? '正在检测登录状态...' : '产业园厂房销售认购管理平台' }}</p>
       </div>
 
-      <el-form ref="formRef" :model="form" :rules="rules" class="login-form" @keyup.enter="onLogin">
+      <!-- SSO 自动登录检测中 -->
+      <div v-if="ssoChecking" class="sso-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>正在检测 OA 登录状态...</span>
+      </div>
+
+      <el-form v-else ref="formRef" :model="form" :rules="rules" class="login-form" @keyup.enter="onLogin">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" size="large" :prefix-icon="User" />
         </el-form-item>
@@ -63,6 +69,7 @@
       </el-form>
 
       <div class="login-footer">
+        <p>支持 OA 系统账号统一登录（管理员开启 OA 单点登录后生效）</p>
         <p>演示账号：admin/admin123 · manager/manager123</p>
         <p>finance/finance123 · legal/legal123 · sales/sales123</p>
       </div>
@@ -71,17 +78,19 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, Loading } from '@element-plus/icons-vue'
 import { authApi } from '../api'
 import { useAuthStore } from '../store/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref()
 const loading = ref(false)
+const ssoChecking = ref(false)
 const form = reactive({ username: 'admin', password: 'admin123' })
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -96,15 +105,61 @@ const onLogin = async () => {
       const res = await authApi.login(form)
       auth.setLogin(res.data)
       ElMessage.success('登录成功')
-      router.push('/')
+      const redirect = route.query.redirect || '/'
+      router.push(redirect)
     } finally {
       loading.value = false
     }
   })
 }
+
+// 从 cookie 读取 sso_token（OA 登录后写在父域 cookie 上）
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) return parts.pop().split(';').shift()
+  return null
+}
+
+// 尝试 OA 单点登录自动登录：URL 参数 > cookie > localStorage
+const tryAutoLogin = async () => {
+  const urlParams = new URLSearchParams(window.location.search)
+  let ssoToken = urlParams.get('sso_token')
+  if (!ssoToken) ssoToken = getCookie('sso_token')
+  if (!ssoToken) ssoToken = localStorage.getItem('sso_token')
+  if (!ssoToken) return
+
+  ssoChecking.value = true
+  try {
+    await auth.ssoAutoLogin(ssoToken)
+    ElMessage.success('自动登录成功')
+    if (urlParams.has('sso_token')) {
+      urlParams.delete('sso_token')
+      const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
+      window.history.replaceState({}, '', newUrl)
+    }
+    router.push(route.query.redirect || '/')
+  } catch (e) {
+    console.log('OA 自动登录失败，切换到手动登录', e)
+  } finally {
+    ssoChecking.value = false
+  }
+}
+
+onMounted(tryAutoLogin)
 </script>
 
 <style scoped>
+.sso-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 0;
+  color: #1e5ba8;
+  font-size: 15px;
+}
+
 .login-container {
   min-height: 100vh;
   display: flex;

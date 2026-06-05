@@ -15,6 +15,10 @@
           <el-switch v-model="configs.oa_enabled" active-value="true" inactive-value="false" />
           <span class="config-hint">启用后合同审批将提交至外部OA系统</span>
         </el-form-item>
+        <el-form-item label="启用OA单点登录">
+          <el-switch v-model="configs.oa_sso_enabled" active-value="true" inactive-value="false" />
+          <span class="config-hint">启用后登录账号密码由 OA 系统统一校验；关闭则使用本系统本地账号</span>
+        </el-form-item>
         <el-form-item label="OA API地址">
           <el-input v-model="configs.oa_api_url" placeholder="http://oa-host:8080/api" />
         </el-form-item>
@@ -68,6 +72,7 @@ const loading = ref(false)
 const saving = ref(false)
 const configs = reactive({
   oa_enabled: 'false',
+  oa_sso_enabled: 'false',
   oa_api_url: '',
   oa_callback_url: '',
   contract_workflow_type: '',

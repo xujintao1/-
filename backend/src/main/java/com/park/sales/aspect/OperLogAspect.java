@@ -51,7 +51,8 @@ public class OperLogAspect {
     @Pointcut("execution(* com.park.sales.controller..*(..)) "
             + "&& !execution(* com.park.sales.controller.SystemOperLogController.*(..)) "
             + "&& !execution(* com.park.sales.controller.OaCallbackController.*(..)) "
-            + "&& !execution(* com.park.sales.controller.AuthController.*(..))")
+            + "&& !execution(* com.park.sales.controller.AuthController.*(..)) "
+            + "&& !execution(* com.park.sales.controller.SsoController.*(..))")
     public void controllerMethods() {
     }
 
