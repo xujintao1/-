@@ -22,13 +22,15 @@
           <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.text || row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="330" fixed="right">
+      <el-table-column label="操作" min-width="360" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" size="small" type="primary" @click="onSubmit(row)">提交审批</el-button>
-          <el-button size="small" @click="openProgress(row)">审批进度</el-button>
-          <el-button v-if="row.status === 'APPROVING'" size="small" type="warning" @click="onWithdraw(row)">撤销</el-button>
-          <el-button v-if="row.status === 'REJECTED'" size="small" type="primary" @click="onResubmit(row)">重新提交</el-button>
-          <el-button v-if="row.status === 'EFFECTIVE'" size="small" type="success" @click="openPayment(row)">登记回款</el-button>
+          <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
+          <el-button v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" link type="primary" size="small" @click="onSubmit(row)">提交审批</el-button>
+          <el-button v-if="row.status === 'APPROVING'" link type="warning" size="small" @click="onWithdraw(row)">撤销</el-button>
+          <el-button v-if="isAdmin && row.status === 'APPROVING'" link type="success" size="small" @click="onResync(row)">重新同步</el-button>
+          <el-button v-if="row.status === 'REJECTED'" link type="primary" size="small" @click="onResubmit(row)">重新提交</el-button>
+          <el-button v-if="row.status === 'REJECTED'" link type="danger" size="small" @click="onDelete(row)">删除</el-button>
+          <el-button v-if="row.status === 'EFFECTIVE'" link type="success" size="small" @click="openPayment(row)">登记回款</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -63,10 +65,27 @@
       </template>
     </el-dialog>
 
-    <!-- 审批进度 -->
-    <el-dialog v-model="progressVisible" title="合同审批进度" width="600px">
-      <ApprovalTimeline v-if="currentFlowId" :flow-id="currentFlowId" ref="timelineRef" />
-      <el-empty v-else description="该合同尚未提交审批" />
+    <!-- 合同详情（状态头部 + 合同信息 + 审批流程，对齐 hr- 详情布局） -->
+    <el-dialog v-model="detailVisible" title="合同详情" width="680px">
+      <div v-if="detailRow">
+        <div class="detail-header">
+          <el-tag :type="statusMap[detailRow.status]?.type" size="large">{{ statusMap[detailRow.status]?.text || detailRow.status }}</el-tag>
+          <span class="meta">合同编号：{{ detailRow.contractNo }}</span>
+          <span class="meta" v-if="detailRow.createTime">发起时间：{{ fmtTime(detailRow.createTime) }}</span>
+        </div>
+        <el-descriptions :column="2" border size="small" style="margin-top: 14px">
+          <el-descriptions-item label="客户">{{ detailRow.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="厂房单元">{{ detailRow.unitNo }}</el-descriptions-item>
+          <el-descriptions-item label="合同金额(元)">{{ fmt(detailRow.amount) }}</el-descriptions-item>
+          <el-descriptions-item label="优惠(元)">{{ fmt(detailRow.discount) }}</el-descriptions-item>
+          <el-descriptions-item label="付款方式">{{ payMap[detailRow.paymentMethod] || detailRow.paymentMethod }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ statusMap[detailRow.status]?.text || detailRow.status }}</el-descriptions-item>
+          <el-descriptions-item label="合同条款" :span="2">{{ detailRow.terms || '-' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-divider content-position="left">审批流程</el-divider>
+        <ApprovalTimeline v-if="detailRow.approvalFlowId" :flow-id="detailRow.approvalFlowId" ref="timelineRef" />
+        <el-empty v-else description="该合同尚未提交审批" :image-size="60" />
+      </div>
     </el-dialog>
 
     <!-- 登记回款 -->
@@ -100,8 +119,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { contractApi, subscriptionApi, paymentApi, approvalApi } from '../api'
+import { useAuthStore } from '../store/auth'
 import ApprovalFlowPreview from '../components/ApprovalFlowPreview.vue'
 import ApprovalTimeline from '../components/ApprovalTimeline.vue'
+
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.roles.includes('ADMIN'))
 
 const statusMap = {
   DRAFT: { text: '草稿', type: 'info' },
@@ -128,8 +151,8 @@ const selectedSubTotal = computed(() => {
   return s ? s.totalPrice : 0
 })
 
-const progressVisible = ref(false)
-const currentFlowId = ref(null)
+const detailVisible = ref(false)
+const detailRow = ref(null)
 
 const paymentVisible = ref(false)
 const payForm = reactive({})
@@ -137,6 +160,14 @@ const payments = ref([])
 let currentContractId = null
 
 const fmt = (v) => (v === undefined || v === null) ? 0 : Number(v).toLocaleString('zh-CN')
+const fmtTime = (t) => {
+  if (!t) return '-'
+  if (Array.isArray(t)) {
+    const [y, m, d, h = 0, min = 0, s = 0] = t
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return String(t).replace('T', ' ').substring(0, 19)
+}
 
 const load = async () => {
   loading.value = true
@@ -172,9 +203,9 @@ const onSubmit = async (row) => {
   load()
 }
 
-const openProgress = (row) => {
-  currentFlowId.value = row.approvalFlowId || null
-  progressVisible.value = true
+const openDetail = (row) => {
+  detailRow.value = row
+  detailVisible.value = true
 }
 
 const onWithdraw = async (row) => {
@@ -189,9 +220,32 @@ const onWithdraw = async (row) => {
 }
 
 const onResubmit = async (row) => {
-  await approvalApi.resubmit(row.approvalFlowId)
-  ElMessage.success('已重新提交审批')
-  load()
+  try {
+    await ElMessageBox.confirm('确认重新提交该合同审批？流程将从第一个节点重新开始。', '重新提交', { type: 'warning' })
+    await approvalApi.resubmit(row.approvalFlowId)
+    ElMessage.success('已重新提交审批')
+    load()
+  } catch (e) { /* 用户取消 */ }
+}
+
+// 重新同步（状态回调）：以 OA 端状态为准校准本地流程，仅管理员
+const onResync = async (row) => {
+  try {
+    await ElMessageBox.confirm('将以 OA 端真实状态为准重新校准该合同的审批流。', '重新同步', { type: 'warning' })
+    const res = await approvalApi.resync(row.approvalFlowId)
+    ElMessage.success(res.data || '同步完成')
+    load()
+  } catch (e) { /* 用户取消 */ }
+}
+
+// 删除审批流（驳回后）：删除后合同回退草稿、解除关联
+const onDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm('确认删除该合同的审批流？删除后合同将回退为草稿状态。', '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+    await approvalApi.remove(row.approvalFlowId)
+    ElMessage.success('已删除审批流')
+    load()
+  } catch (e) { /* 用户取消 */ }
 }
 
 const openPayment = async (row) => {
@@ -215,4 +269,14 @@ onMounted(load)
 
 <style scoped>
 .toolbar { display: flex; gap: 10px; }
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detail-header .meta {
+  color: #606266;
+  font-size: 13px;
+}
 </style>

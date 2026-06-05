@@ -48,7 +48,8 @@ export const approvalApi = {
   reject: (taskId, data) => request.post(`/approvals/${taskId}/reject`, data),
   withdraw: (flowId, data) => request.post(`/approvals/flows/${flowId}/withdraw`, data),
   resubmit: (flowId) => request.post(`/approvals/flows/${flowId}/resubmit`),
-  remove: (flowId) => request.delete(`/approvals/flows/${flowId}`)
+  remove: (flowId) => request.delete(`/approvals/flows/${flowId}`),
+  resync: (flowId) => request.post(`/approvals/flows/${flowId}/resync`)
 }
 
 export const configApi = {
