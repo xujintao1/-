@@ -22,10 +22,12 @@
           <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.text || row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="240">
+      <el-table-column label="操作" min-width="330" fixed="right">
         <template #default="{ row }">
           <el-button v-if="row.status === 'DRAFT' || row.status === 'REJECTED'" size="small" type="primary" @click="onSubmit(row)">提交审批</el-button>
           <el-button size="small" @click="openProgress(row)">审批进度</el-button>
+          <el-button v-if="row.status === 'APPROVING'" size="small" type="warning" @click="onWithdraw(row)">撤销</el-button>
+          <el-button v-if="row.status === 'REJECTED'" size="small" type="primary" @click="onResubmit(row)">重新提交</el-button>
           <el-button v-if="row.status === 'EFFECTIVE'" size="small" type="success" @click="openPayment(row)">登记回款</el-button>
         </template>
       </el-table-column>
@@ -54,6 +56,7 @@
         </el-form-item>
         <el-form-item label="合同条款"><el-input v-model="form.terms" type="textarea" :rows="3" /></el-form-item>
       </el-form>
+      <ApprovalFlowPreview biz-type="CONTRACT" />
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" @click="onCreate">生成</el-button>
@@ -61,18 +64,9 @@
     </el-dialog>
 
     <!-- 审批进度 -->
-    <el-dialog v-model="progressVisible" title="合同审批进度" width="560px">
-      <el-steps :active="activeStep" finish-status="success" align-center v-if="tasks.length">
-        <el-step v-for="t in tasks" :key="t.id" :title="t.nodeName" :status="stepStatus(t)" />
-      </el-steps>
+    <el-dialog v-model="progressVisible" title="合同审批进度" width="600px">
+      <ApprovalTimeline v-if="currentFlowId" :flow-id="currentFlowId" ref="timelineRef" />
       <el-empty v-else description="该合同尚未提交审批" />
-      <el-timeline style="margin-top: 20px" v-if="tasks.length">
-        <el-timeline-item v-for="t in tasks" :key="t.id" :type="stepStatus(t) === 'success' ? 'success' : (stepStatus(t) === 'error' ? 'danger' : 'primary')"
-          :timestamp="t.handledTime || ''">
-          <b>{{ t.nodeName }}</b>（{{ roleName(t.approverRole) }}）— {{ taskStatusText(t.status) }}
-          <div v-if="t.comment" style="color:#909399">意见：{{ t.comment }}</div>
-        </el-timeline-item>
-      </el-timeline>
     </el-dialog>
 
     <!-- 登记回款 -->
@@ -104,8 +98,10 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { contractApi, subscriptionApi, paymentApi } from '../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { contractApi, subscriptionApi, paymentApi, approvalApi } from '../api'
+import ApprovalFlowPreview from '../components/ApprovalFlowPreview.vue'
+import ApprovalTimeline from '../components/ApprovalTimeline.vue'
 
 const statusMap = {
   DRAFT: { text: '草稿', type: 'info' },
@@ -133,8 +129,7 @@ const selectedSubTotal = computed(() => {
 })
 
 const progressVisible = ref(false)
-const tasks = ref([])
-const activeStep = computed(() => tasks.value.filter((t) => t.status === 'APPROVED').length)
+const currentFlowId = ref(null)
 
 const paymentVisible = ref(false)
 const payForm = reactive({})
@@ -177,17 +172,27 @@ const onSubmit = async (row) => {
   load()
 }
 
-const openProgress = async (row) => {
-  const res = await contractApi.approvalTasks(row.id)
-  tasks.value = res.data
+const openProgress = (row) => {
+  currentFlowId.value = row.approvalFlowId || null
   progressVisible.value = true
 }
-const stepStatus = (t) => {
-  if (t.status === 'APPROVED') return 'success'
-  if (t.status === 'REJECTED') return 'error'
-  return 'wait'
+
+const onWithdraw = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入撤销原因（可选）', '撤销审批', {
+      confirmButtonText: '确认撤销', cancelButtonText: '取消', inputType: 'textarea'
+    })
+    await approvalApi.withdraw(row.approvalFlowId, { comment: value })
+    ElMessage.success('已撤销审批')
+    load()
+  } catch (e) { /* 用户取消 */ }
 }
-const taskStatusText = (s) => ({ PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回' }[s] || s)
+
+const onResubmit = async (row) => {
+  await approvalApi.resubmit(row.approvalFlowId)
+  ElMessage.success('已重新提交审批')
+  load()
+}
 
 const openPayment = async (row) => {
   currentContractId = row.id

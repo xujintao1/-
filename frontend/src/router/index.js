@@ -13,7 +13,10 @@ const routes = [
       { path: 'customers', name: 'customers', meta: { title: '客户管理' }, component: () => import('../views/Customers.vue') },
       { path: 'subscriptions', name: 'subscriptions', meta: { title: '认购管理' }, component: () => import('../views/Subscriptions.vue') },
       { path: 'contracts', name: 'contracts', meta: { title: '合同管理' }, component: () => import('../views/Contracts.vue') },
-      { path: 'approvals', name: 'approvals', meta: { title: '审批待办' }, component: () => import('../views/Approvals.vue') }
+      { path: 'approvals', name: 'approvals', meta: { title: '审批待办' }, component: () => import('../views/Approvals.vue') },
+      { path: 'system/config', name: 'system-config', meta: { title: '系统设置', roles: ['ADMIN'] }, component: () => import('../views/system/Config.vue') },
+      { path: 'system/users', name: 'system-users', meta: { title: '用户管理', roles: ['ADMIN'] }, component: () => import('../views/system/User.vue') },
+      { path: 'system/roles', name: 'system-roles', meta: { title: '角色管理', roles: ['ADMIN'] }, component: () => import('../views/system/Role.vue') }
     ]
   }
 ]
@@ -29,6 +32,8 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else if (to.path === '/login' && auth.isLoggedIn) {
     next('/')
+  } else if (to.meta && to.meta.roles && !to.meta.roles.some((r) => auth.roles.includes(r))) {
+    next('/dashboard')
   } else {
     next()
   }

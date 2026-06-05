@@ -12,6 +12,12 @@
           <el-icon><Stamp /></el-icon><span>审批待办</span>
           <el-badge v-if="todoCount > 0" :value="todoCount" class="todo-badge" />
         </el-menu-item>
+        <el-sub-menu index="system" v-if="isAdmin">
+          <template #title><el-icon><Setting /></el-icon><span>系统设置</span></template>
+          <el-menu-item index="/system/config">参数配置</el-menu-item>
+          <el-menu-item index="/system/users">用户管理</el-menu-item>
+          <el-menu-item index="/system/roles">角色管理</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
     <el-container>
@@ -38,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../store/auth'
 import { approvalApi } from '../api'
@@ -47,6 +53,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const todoCount = ref(0)
+const isAdmin = computed(() => auth.roles.includes('ADMIN'))
 
 const roleMap = {
   ADMIN: '管理员', SALES: '销售', SALES_MANAGER: '销售经理', FINANCE: '财务', LEGAL: '法务', GM: '总经理'

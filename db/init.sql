@@ -183,7 +183,31 @@ CREATE TABLE IF NOT EXISTS payment_record (
     KEY idx_payment_contract (contract_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '回款记录';
 
+-- 系统参数配置（OA 对接 / 工作流 / 系统）
+CREATE TABLE IF NOT EXISTS sys_config (
+    id           BIGINT       NOT NULL AUTO_INCREMENT,
+    config_group VARCHAR(64)  COMMENT '配置分组 oa_integration/workflow/system',
+    config_key   VARCHAR(128) NOT NULL COMMENT '配置键',
+    config_value VARCHAR(1000) COMMENT '配置值',
+    value_type   VARCHAR(16)  DEFAULT 'string' COMMENT 'string/boolean/number',
+    description  VARCHAR(255),
+    create_time  DATETIME,
+    update_time  DATETIME,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_config_key (config_key)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '系统参数配置';
+
 -- ============ 基础数据 ============
+
+INSERT INTO sys_config (config_group, config_key, config_value, value_type, description, create_time, update_time) VALUES
+ ('oa_integration', 'oa_enabled',      'false', 'boolean', '是否启用外部 OA 审批', NOW(), NOW()),
+ ('oa_integration', 'oa_api_url',      '',      'string',  'OA 开放接口根地址，如 http://oa-host:8080', NOW(), NOW()),
+ ('oa_integration', 'oa_callback_url', '',      'string',  'OA 回调本系统地址（留空使用默认）', NOW(), NOW()),
+ ('oa_integration', 'contract_workflow_type', 'CONTRACT_APPROVAL', 'string', '合同审批对应的 OA 流程标识', NOW(), NOW()),
+ ('workflow',       'approval_gateway',        'internal', 'string', '审批网关 internal/oa', NOW(), NOW()),
+ ('workflow',       'contract_approval_chain', 'SALES_MANAGER,FINANCE,LEGAL', 'string', '合同审批链（按序，逗号分隔角色）', NOW(), NOW()),
+ ('system',         'system_name',     '产业园厂房销售认购系统', 'string', '系统名称', NOW(), NOW())
+ON DUPLICATE KEY UPDATE description = VALUES(description);
 
 INSERT INTO sys_role (code, name, description, create_time, update_time, deleted) VALUES
  ('ADMIN', '系统管理员', '全部权限', NOW(), NOW(), 0),

@@ -30,3 +30,6 @@ app:
     gateway: ${APPROVAL_GATEWAY:internal}
     # 内置审批链（按角色顺序）
     chain: SALES_MANAGER,FINANCE,LEGAL
+  oa:
+    # 外部 OA 开放接口根地址（运行期以系统配置 oa_api_url 为准，留空表示未对接）
+    api-base-url: ${OA_API_BASE_URL:}

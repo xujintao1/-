@@ -3,6 +3,7 @@ package com.park.sales.config;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.park.sales.entity.User;
 import com.park.sales.mapper.UserMapper;
+import com.park.sales.service.ConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -21,10 +22,12 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ConfigService configService;
 
-    public DataInitializer(UserMapper userMapper, PasswordEncoder passwordEncoder) {
+    public DataInitializer(UserMapper userMapper, PasswordEncoder passwordEncoder, ConfigService configService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.configService = configService;
     }
 
     @Override
@@ -34,6 +37,23 @@ public class DataInitializer implements CommandLineRunner {
         seed("manager", "manager123", "销售经理老李", "SALES_MANAGER");
         seed("finance", "finance123", "财务主管", "FINANCE");
         seed("legal", "legal123", "法务专员", "LEGAL");
+        seedConfigs();
+    }
+
+    private void seedConfigs() {
+        seedConfig("oa_integration", "oa_enabled", "false");
+        seedConfig("oa_integration", "oa_api_url", "");
+        seedConfig("oa_integration", "oa_callback_url", "");
+        seedConfig("oa_integration", "contract_workflow_type", "CONTRACT_APPROVAL");
+        seedConfig("workflow", "approval_gateway", "internal");
+        seedConfig("workflow", "contract_approval_chain", "SALES_MANAGER,FINANCE,LEGAL");
+        seedConfig("system", "system_name", "产业园厂房销售认购系统");
+    }
+
+    private void seedConfig(String group, String key, String value) {
+        if (configService.getConfig(key) == null) {
+            configService.saveConfig(group, key, value);
+        }
     }
 
     private void seed(String username, String rawPassword, String realName, String roles) {
