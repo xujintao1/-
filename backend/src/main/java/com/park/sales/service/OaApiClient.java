@@ -13,7 +13,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -275,6 +277,95 @@ public class OaApiClient {
         } catch (Exception e) {
             log.error("[OaApiClient.getApprovalProgress] 查询进度失败: id={}, err={}", oaProcessInstanceId, e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * 获取 OA 部门树。调用 OA 的 /open-api/depts/tree。
+     * 参照 hr- 仓库 OaApiClient.getOaDeptTree。OA 未配置或异常时返回空列表。
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getOaDeptTree() {
+        if (getOaApiUrl().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String url = getOaApiUrl() + "/open-api/depts/tree";
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (is200(response)) {
+                Object data = response.getBody().get("data");
+                if (data instanceof List) {
+                    return (List<Map<String, Object>>) data;
+                }
+            }
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error("[OaApiClient.getOaDeptTree] 获取 OA 部门树失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /** 获取 OA 所有用户（默认只含已启用用户）。 */
+    public List<Map<String, Object>> getOaUsers() {
+        return getOaUsers(false);
+    }
+
+    /**
+     * 获取 OA 所有用户。调用 OA 的 /open-api/users/all。
+     * 参照 hr- 仓库 OaApiClient.getOaUsers，兼容 PageResult(data.records) 与 List 两种返回格式。
+     *
+     * @param includeDisabled 是否包含已禁用/离职用户
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getOaUsers(boolean includeDisabled) {
+        if (getOaApiUrl().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String url = getOaApiUrl() + "/open-api/users/all"
+                + (includeDisabled ? "?includeDisabled=true" : "");
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (is200(response)) {
+                Object data = response.getBody().get("data");
+                if (data instanceof Map) {
+                    Object records = ((Map<String, Object>) data).get("records");
+                    if (records instanceof List) {
+                        return (List<Map<String, Object>>) records;
+                    }
+                }
+                if (data instanceof List) {
+                    return (List<Map<String, Object>>) data;
+                }
+            }
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error("[OaApiClient.getOaUsers] 获取 OA 用户列表失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 获取 OA 指定部门下的用户。调用 OA 的 /open-api/users/by-dept/{deptId}。
+     * 参照 hr- 仓库 OaApiClient.getOaUsersByDept。
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getOaUsersByDept(Long deptId) {
+        if (deptId == null || getOaApiUrl().isEmpty()) {
+            return Collections.emptyList();
+        }
+        String url = getOaApiUrl() + "/open-api/users/by-dept/" + deptId;
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (is200(response)) {
+                Object data = response.getBody().get("data");
+                if (data instanceof List) {
+                    return (List<Map<String, Object>>) data;
+                }
+            }
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error("[OaApiClient.getOaUsersByDept] 获取 OA 部门用户失败: deptId={}, err={}", deptId, e.getMessage());
+            return Collections.emptyList();
         }
     }
 

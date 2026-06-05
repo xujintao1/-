@@ -57,14 +57,11 @@ export const configApi = {
   batchUpdate: (updates) => request.put('/system/config/batch', updates)
 }
 
+// 用户数据同步自 OA 系统，本系统仅做角色/启用授权（参照 hr- 仓库）
 export const systemUserApi = {
-  list: (keyword) => request.get('/system/users', { params: { keyword } }),
+  list: (params) => request.get('/system/users', { params }),
   get: (id) => request.get(`/system/users/${id}`),
-  create: (data) => request.post('/system/users', data),
-  update: (id, data) => request.put(`/system/users/${id}`, data),
-  remove: (id) => request.delete(`/system/users/${id}`),
-  setEnabled: (id, enabled) => request.post(`/system/users/${id}/enabled`, { enabled }),
-  resetPassword: (id, password) => request.post(`/system/users/${id}/reset-password`, { password })
+  assignRole: (data) => request.post('/system/users/assign-role', data)
 }
 
 export const systemRoleApi = {
@@ -74,12 +71,10 @@ export const systemRoleApi = {
   remove: (id) => request.delete(`/system/roles/${id}`)
 }
 
+// 部门数据同步自 OA 系统，本系统只读展示（参照 hr- 仓库）
 export const systemDeptApi = {
   tree: () => request.get('/system/dept/tree'),
-  list: () => request.get('/system/dept/list'),
-  create: (data) => request.post('/system/dept', data),
-  update: (data) => request.put('/system/dept', data),
-  remove: (id) => request.delete(`/system/dept/${id}`)
+  list: () => request.get('/system/dept/list')
 }
 
 export const systemMenuApi = {
