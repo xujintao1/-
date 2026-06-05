@@ -14,9 +14,12 @@ const routes = [
       { path: 'subscriptions', name: 'subscriptions', meta: { title: '认购管理' }, component: () => import('../views/Subscriptions.vue') },
       { path: 'contracts', name: 'contracts', meta: { title: '合同管理' }, component: () => import('../views/Contracts.vue') },
       { path: 'approvals', name: 'approvals', meta: { title: '审批待办' }, component: () => import('../views/Approvals.vue') },
-      { path: 'system/config', name: 'system-config', meta: { title: '系统设置', roles: ['ADMIN'] }, component: () => import('../views/system/Config.vue') },
       { path: 'system/users', name: 'system-users', meta: { title: '用户管理', roles: ['ADMIN'] }, component: () => import('../views/system/User.vue') },
-      { path: 'system/roles', name: 'system-roles', meta: { title: '角色管理', roles: ['ADMIN'] }, component: () => import('../views/system/Role.vue') }
+      { path: 'system/dept', name: 'system-dept', meta: { title: '部门管理', roles: ['ADMIN'] }, component: () => import('../views/system/Dept.vue') },
+      { path: 'system/roles', name: 'system-roles', meta: { title: '角色管理', roles: ['ADMIN'] }, component: () => import('../views/system/Role.vue') },
+      { path: 'system/menus', name: 'system-menus', meta: { title: '菜单管理', roles: ['ADMIN'] }, component: () => import('../views/system/Menu.vue') },
+      { path: 'system/config', name: 'system-config', meta: { title: 'OA流程配置', roles: ['ADMIN'] }, component: () => import('../views/system/Config.vue') },
+      { path: 'system/oper-log', name: 'system-oper-log', meta: { title: '操作日志', roles: ['ADMIN'] }, component: () => import('../views/system/OperLog.vue') }
     ]
   }
 ]

@@ -13,10 +13,13 @@
           <el-badge v-if="todoCount > 0" :value="todoCount" class="todo-badge" />
         </el-menu-item>
         <el-sub-menu index="system" v-if="isAdmin">
-          <template #title><el-icon><Setting /></el-icon><span>系统设置</span></template>
-          <el-menu-item index="/system/config">参数配置</el-menu-item>
+          <template #title><el-icon><Setting /></el-icon><span>系统管理</span></template>
           <el-menu-item index="/system/users">用户管理</el-menu-item>
+          <el-menu-item index="/system/dept">部门管理</el-menu-item>
           <el-menu-item index="/system/roles">角色管理</el-menu-item>
+          <el-menu-item index="/system/menus">菜单管理</el-menu-item>
+          <el-menu-item index="/system/config">OA流程配置</el-menu-item>
+          <el-menu-item index="/system/oper-log">操作日志</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>

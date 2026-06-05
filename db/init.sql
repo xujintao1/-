@@ -197,7 +197,85 @@ CREATE TABLE IF NOT EXISTS sys_config (
     UNIQUE KEY uk_config_key (config_key)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '系统参数配置';
 
+-- 部门（树形，对齐 HR 系统管理 - 部门管理）
+CREATE TABLE IF NOT EXISTS sys_dept (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    dept_name   VARCHAR(128) NOT NULL COMMENT '部门名称',
+    parent_id   BIGINT       NOT NULL DEFAULT 0 COMMENT '父部门ID，0为顶级',
+    sort        INT          NOT NULL DEFAULT 0 COMMENT '排序',
+    leader      VARCHAR(64)  COMMENT '负责人',
+    phone       VARCHAR(32)  COMMENT '联系电话',
+    status      TINYINT      NOT NULL DEFAULT 1 COMMENT '1正常 0禁用',
+    create_time DATETIME,
+    update_time DATETIME,
+    PRIMARY KEY (id),
+    KEY idx_dept_parent (parent_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '部门';
+
+-- 菜单（树形，对齐 HR 系统管理 - 菜单管理）
+CREATE TABLE IF NOT EXISTS sys_menu (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    menu_name   VARCHAR(64)  NOT NULL COMMENT '菜单名称',
+    parent_id   BIGINT       NOT NULL DEFAULT 0 COMMENT '父菜单ID，0为顶级',
+    path        VARCHAR(255) COMMENT '路由路径',
+    component   VARCHAR(255) COMMENT '组件路径',
+    icon        VARCHAR(64)  COMMENT '图标',
+    sort        INT          NOT NULL DEFAULT 0 COMMENT '排序',
+    menu_type   VARCHAR(8)   NOT NULL DEFAULT 'M' COMMENT 'M目录 C菜单 F按钮',
+    visible     TINYINT      NOT NULL DEFAULT 1 COMMENT '1显示 0隐藏',
+    perms       VARCHAR(128) COMMENT '权限标识',
+    create_time DATETIME,
+    PRIMARY KEY (id),
+    KEY idx_menu_parent (parent_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '菜单';
+
+-- 操作日志
+CREATE TABLE IF NOT EXISTS sys_oper_log (
+    id             BIGINT       NOT NULL AUTO_INCREMENT,
+    module         VARCHAR(64)  COMMENT '操作模块',
+    oper_type      VARCHAR(16)  COMMENT 'CREATE/UPDATE/DELETE/OTHER',
+    title          VARCHAR(128) COMMENT '操作描述',
+    method         VARCHAR(255) COMMENT '请求方法',
+    request_method VARCHAR(16)  COMMENT 'HTTP方法',
+    request_uri    VARCHAR(255) COMMENT '请求URI',
+    oper_name      VARCHAR(64)  COMMENT '操作人',
+    oper_param     VARCHAR(1000) COMMENT '请求参数',
+    status         TINYINT      DEFAULT 1 COMMENT '1成功 0失败',
+    error_msg      VARCHAR(1000) COMMENT '错误信息',
+    cost_time      BIGINT       COMMENT '耗时(ms)',
+    oper_time      DATETIME,
+    PRIMARY KEY (id),
+    KEY idx_log_module (module),
+    KEY idx_log_time (oper_time)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT '操作日志';
+
 -- ============ 基础数据 ============
+
+INSERT INTO sys_dept (id, dept_name, parent_id, sort, leader, phone, status, create_time, update_time) VALUES
+ (1, '智造产业园', 0, 1, '王总', '0512-66000000', 1, NOW(), NOW()),
+ (2, '销售中心',   1, 1, '老李', '0512-66000001', 1, NOW(), NOW()),
+ (3, '销售一部',   2, 1, '张伟', '0512-66000002', 1, NOW(), NOW()),
+ (4, '销售二部',   2, 2, '李娜', '0512-66000003', 1, NOW(), NOW()),
+ (5, '财务部',     1, 2, '钱会计', '0512-66000004', 1, NOW(), NOW()),
+ (6, '法务部',     1, 3, '赵律师', '0512-66000005', 1, NOW(), NOW())
+ON DUPLICATE KEY UPDATE dept_name = VALUES(dept_name);
+
+INSERT INTO sys_menu (id, menu_name, parent_id, path, component, icon, sort, menu_type, visible, perms, create_time) VALUES
+ (1,  '销售看板', 0, '/dashboard',      'Dashboard',      'DataLine',       1, 'C', 1, 'dashboard:view',   NOW()),
+ (2,  '房源管理', 0, '/factory-units',  'FactoryUnits',   'OfficeBuilding', 2, 'C', 1, 'unit:view',        NOW()),
+ (3,  '客户管理', 0, '/customers',      'Customers',      'User',           3, 'C', 1, 'customer:view',    NOW()),
+ (4,  '认购管理', 0, '/subscriptions',  'Subscriptions',  'Tickets',        4, 'C', 1, 'subscription:view',NOW()),
+ (5,  '合同管理', 0, '/contracts',      'Contracts',      'Document',       5, 'C', 1, 'contract:view',    NOW()),
+ (6,  '审批待办', 0, '/approvals',      'Approvals',      'Stamp',          6, 'C', 1, 'approval:view',    NOW()),
+ (7,  '系统管理', 0, '',                '',               'Setting',        9, 'M', 1, '',                 NOW()),
+ (71, '用户管理', 7, '/system/users',   'system/User',    '',               1, 'C', 1, 'system:user:view', NOW()),
+ (72, '部门管理', 7, '/system/dept',    'system/Dept',    '',               2, 'C', 1, 'system:dept:view', NOW()),
+ (73, '角色管理', 7, '/system/roles',   'system/Role',    '',               3, 'C', 1, 'system:role:view', NOW()),
+ (74, '菜单管理', 7, '/system/menus',   'system/Menu',    '',               4, 'C', 1, 'system:menu:view', NOW()),
+ (75, 'OA流程配置', 7, '/system/config', 'system/Config',  '',               5, 'C', 1, 'system:config:view', NOW()),
+ (76, '操作日志', 7, '/system/oper-log','system/OperLog', '',               6, 'C', 1, 'system:log:view',  NOW())
+ON DUPLICATE KEY UPDATE menu_name = VALUES(menu_name);
+
 
 INSERT INTO sys_config (config_group, config_key, config_value, value_type, description, create_time, update_time) VALUES
  ('oa_integration', 'oa_enabled',      'false', 'boolean', '是否启用外部 OA 审批', NOW(), NOW()),

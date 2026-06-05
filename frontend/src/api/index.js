@@ -68,6 +68,26 @@ export const systemRoleApi = {
   remove: (id) => request.delete(`/system/roles/${id}`)
 }
 
+export const systemDeptApi = {
+  tree: () => request.get('/system/dept/tree'),
+  list: () => request.get('/system/dept/list'),
+  create: (data) => request.post('/system/dept', data),
+  update: (data) => request.put('/system/dept', data),
+  remove: (id) => request.delete(`/system/dept/${id}`)
+}
+
+export const systemMenuApi = {
+  list: () => request.get('/system/menu/list'),
+  create: (data) => request.post('/system/menu', data),
+  update: (data) => request.put('/system/menu', data),
+  remove: (id) => request.delete(`/system/menu/${id}`)
+}
+
+export const operLogApi = {
+  page: (params) => request.get('/system/oper-log/page', { params }),
+  clear: () => request.delete('/system/oper-log/clear')
+}
+
 export const paymentApi = {
   listByContract: (contractId) => request.get('/payments', { params: { contractId } }),
   create: (data) => request.post('/payments', data)
