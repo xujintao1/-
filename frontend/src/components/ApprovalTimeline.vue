@@ -13,25 +13,7 @@
       <el-icon class="is-loading"><Loading /></el-icon> 加载中...
     </div>
 
-    <el-timeline v-else-if="tasks.length > 0" class="timeline-body">
-      <el-timeline-item
-        v-for="task in tasks"
-        :key="task.id"
-        :type="dotType(task)"
-        :hollow="task.status === 'PENDING'"
-        :timestamp="task.handledTime || ''"
-        placement="top"
-      >
-        <div class="node-row">
-          <span class="node-name">{{ task.nodeName }}</span>
-          <el-tag size="small" type="info" class="role-tag">{{ roleName(task.approverRole) }}</el-tag>
-          <el-tag size="small" :type="taskTagType(task.status)">{{ taskStatusName(task.status) }}</el-tag>
-        </div>
-        <div v-if="task.comment" class="node-comment">审批意见：{{ task.comment }}</div>
-      </el-timeline-item>
-    </el-timeline>
-
-    <el-empty v-else description="暂无审批记录" :image-size="60" />
+    <ApprovalFlowSteps v-else :nodes="nodes" />
   </div>
 </template>
 
@@ -39,6 +21,7 @@
 import { ref, watch } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import { approvalApi } from '../api'
+import ApprovalFlowSteps from './ApprovalFlowSteps.vue'
 
 const props = defineProps({
   flowId: { type: [Number, String], default: null },
@@ -47,13 +30,13 @@ const props = defineProps({
 
 const loading = ref(false)
 const flow = ref(null)
-const tasks = ref([])
+const nodes = ref([])
 
 const roleMap = {
   ADMIN: '管理员', SALES: '销售', SALES_MANAGER: '销售经理',
   FINANCE: '财务', LEGAL: '法务', GM: '总经理'
 }
-const roleName = (r) => roleMap[r] || r || '-'
+const roleName = (r) => roleMap[r] || r || '审批人'
 
 const flowStatusMap = {
   APPROVING: '审批中', APPROVED: '已通过', REJECTED: '已驳回', WITHDRAWN: '已撤销'
@@ -63,31 +46,57 @@ const statusTagType = (s) => ({
   APPROVING: 'warning', APPROVED: 'success', REJECTED: 'danger', WITHDRAWN: 'info'
 }[s] || 'info')
 
-const taskStatusMap = {
-  PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', CANCELLED: '已作废'
+// 将「审批流 + 节点任务」映射为 hr- 垂直流程节点
+const buildNodes = (flowData, tasks) => {
+  const result = []
+  result.push({
+    type: 0,
+    nodeName: '发起申请',
+    approvers: [{ name: '发起人' }],
+    status: 'approved',
+    statusName: '已提交'
+  })
+  const sorted = [...(tasks || [])].sort((a, b) => (a.step || 0) - (b.step || 0))
+  for (const task of sorted) {
+    let status = 'waiting'
+    let label = '待审批'
+    if (task.status === 'APPROVED') { status = 'approved'; label = '已通过' }
+    else if (task.status === 'REJECTED') { status = 'rejected'; label = '已驳回' }
+    else if (task.status === 'CANCELLED') { status = 'waiting'; label = '已作废' }
+    else if (task.status === 'PENDING') {
+      if (flowData && flowData.status === 'APPROVING' && task.step === flowData.currentStep) {
+        status = 'pending'; label = '审批中'
+      } else {
+        status = 'waiting'; label = '待审批'
+      }
+    }
+    result.push({
+      type: 1,
+      nodeName: task.nodeName || '审批节点',
+      approvers: [{ name: roleName(task.approverRole) }],
+      status,
+      statusName: label,
+      comment: task.comment || '',
+      completeTime: task.handledTime || ''
+    })
+  }
+  return result
 }
-const taskStatusName = (s) => taskStatusMap[s] || s
-const taskTagType = (s) => ({
-  PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'info'
-}[s] || 'info')
-const dotType = (task) => ({
-  PENDING: 'primary', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'info'
-}[task.status] || 'info')
 
 const fetchDetail = async () => {
   if (!props.flowId) {
     flow.value = null
-    tasks.value = []
+    nodes.value = []
     return
   }
   loading.value = true
   try {
     const res = await approvalApi.flowDetail(props.flowId)
     flow.value = res.data ? res.data.flow : null
-    tasks.value = res.data ? (res.data.tasks || []) : []
+    nodes.value = res.data ? buildNodes(res.data.flow, res.data.tasks) : []
   } catch (e) {
     flow.value = null
-    tasks.value = []
+    nodes.value = []
   } finally {
     loading.value = false
   }
@@ -101,14 +110,12 @@ defineExpose({ refresh: fetchDetail })
 </script>
 
 <style scoped>
-.approval-timeline {
-  padding: 4px 0;
-}
+.approval-timeline { padding: 4px 0; }
 .timeline-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 .timeline-header .label {
   color: #606266;
@@ -120,22 +127,10 @@ defineExpose({ refresh: fetchDetail })
   font-size: 12px;
   margin-left: 8px;
 }
-.timeline-body { padding-left: 4px; }
-.node-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.node-name { font-weight: 500; color: #1f2d3d; }
-.role-tag { margin-left: 2px; }
-.node-comment {
-  margin-top: 6px;
-  color: #606266;
-  font-size: 13px;
-}
 .loading-tip {
   color: #909399;
   font-size: 13px;
   padding: 12px 0;
+  text-align: center;
 }
 </style>

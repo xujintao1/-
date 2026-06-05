@@ -1,12 +1,17 @@
 <template>
-  <el-card>
-    <div class="toolbar">
+  <el-card shadow="never">
+    <div class="search-bar">
       <el-button type="success" @click="openCreate">新建认购单</el-button>
+      <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px">
+        <el-option label="全部" value="" />
+        <el-option v-for="(v, k) in statusMap" :key="k" :label="v.text" :value="k" />
+      </el-select>
+      <el-button @click="resetFilter">重置</el-button>
     </div>
 
-    <el-table :data="list" border style="margin-top: 14px" v-loading="loading">
+    <el-table :data="displayList" stripe style="margin-top: 12px" v-loading="loading">
       <el-table-column prop="subscriptionNo" label="认购单号" width="180" />
-      <el-table-column prop="customerName" label="客户" min-width="180" />
+      <el-table-column prop="customerName" label="客户" min-width="180" show-overflow-tooltip />
       <el-table-column prop="unitNo" label="厂房单元" width="110" />
       <el-table-column label="定金(元)" width="120">
         <template #default="{ row }">{{ fmt(row.deposit) }}</template>
@@ -14,15 +19,16 @@
       <el-table-column label="成交总价(元)" width="150">
         <template #default="{ row }">{{ fmt(row.totalPrice) }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="110">
+      <el-table-column label="状态" width="110" align="center">
         <template #default="{ row }">
-          <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.text || row.status }}</el-tag>
+          <el-tag :type="statusMap[row.status]?.type" size="small">{{ statusMap[row.status]?.text || row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="140" />
-      <el-table-column label="操作" width="120">
+      <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
+      <el-table-column label="操作" width="160" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button v-if="row.status === 'ACTIVE'" size="small" type="danger" @click="onCancel(row)">取消</el-button>
+          <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
+          <el-button v-if="row.status === 'ACTIVE'" link type="danger" size="small" @click="onCancel(row)">取消</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -54,6 +60,25 @@
         <el-button type="primary" @click="onSave">提交</el-button>
       </template>
     </el-dialog>
+
+    <!-- 认购单详情 -->
+    <el-dialog v-model="detailVisible" title="认购单详情" width="560px">
+      <el-descriptions v-if="detailRow" :column="2" border size="small">
+        <el-descriptions-item label="认购单号">{{ detailRow.subscriptionNo }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="statusMap[detailRow.status]?.type" size="small">{{ statusMap[detailRow.status]?.text || detailRow.status }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="客户">{{ detailRow.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="厂房单元">{{ detailRow.unitNo }}</el-descriptions-item>
+        <el-descriptions-item label="定金">{{ fmt(detailRow.deposit) }} 元</el-descriptions-item>
+        <el-descriptions-item label="成交总价">{{ fmt(detailRow.totalPrice) }} 元</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatTime(detailRow.createTime) }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ detailRow.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -72,12 +97,28 @@ const list = ref([])
 const total = ref(0)
 const loading = ref(false)
 const query = reactive({ current: 1, size: 10 })
+const statusFilter = ref('')
 const dialogVisible = ref(false)
 const form = reactive({})
 const customers = ref([])
 const units = ref([])
 
+const detailVisible = ref(false)
+const detailRow = ref(null)
+
+const displayList = computed(() =>
+  statusFilter.value ? list.value.filter((r) => r.status === statusFilter.value) : list.value
+)
+
 const fmt = (v) => (v === undefined || v === null) ? 0 : Number(v).toLocaleString('zh-CN')
+const formatTime = (t) => {
+  if (!t) return '-'
+  if (Array.isArray(t)) {
+    const [y, m, d, h = 0, min = 0, s = 0] = t
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return String(t).replace('T', ' ').substring(0, 19)
+}
 const selectedTotal = computed(() => {
   const u = units.value.find((x) => x.id === form.factoryUnitId)
   return u ? u.totalPrice : 0
@@ -94,6 +135,7 @@ const load = async () => {
   }
 }
 const onPage = (p) => { query.current = p; load() }
+const resetFilter = () => { statusFilter.value = '' }
 
 const openCreate = async () => {
   Object.keys(form).forEach((k) => delete form[k])
@@ -113,6 +155,10 @@ const onSave = async () => {
   dialogVisible.value = false
   load()
 }
+const openDetail = (row) => {
+  detailRow.value = row
+  detailVisible.value = true
+}
 const onCancel = (row) => {
   ElMessageBox.confirm(`确认取消认购单 ${row.subscriptionNo}? 房源将恢复在售。`, '提示', { type: 'warning' }).then(async () => {
     await subscriptionApi.cancel(row.id)
@@ -125,5 +171,10 @@ onMounted(load)
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 10px; }
+.search-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 </style>
