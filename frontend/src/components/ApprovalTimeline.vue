@@ -13,31 +13,41 @@
       <el-icon class="is-loading"><Loading /></el-icon> 加载中...
     </div>
 
-    <el-timeline v-else-if="tasks.length > 0" class="timeline-body">
-      <el-timeline-item
-        v-for="task in tasks"
-        :key="task.id"
-        :type="dotType(task)"
-        :hollow="task.status === 'PENDING'"
-        :timestamp="task.handledTime || ''"
-        placement="top"
-      >
-        <div class="node-row">
-          <span class="node-name">{{ task.nodeName }}</span>
-          <el-tag size="small" type="info" class="role-tag">{{ roleName(task.approverRole) }}</el-tag>
-          <el-tag size="small" :type="taskTagType(task.status)">{{ taskStatusName(task.status) }}</el-tag>
+    <div v-else-if="nodes.length > 0" class="approval-flow-vertical">
+      <div v-for="(node, idx) in nodes" :key="idx" class="flow-step">
+        <div class="flow-step-left">
+          <div class="flow-step-icon" :class="getIconClass(node)">
+            <el-icon v-if="node.type === 0" size="16"><User /></el-icon>
+            <el-icon v-else-if="node.status === 'approved'" size="16"><Check /></el-icon>
+            <el-icon v-else-if="node.status === 'rejected'" size="16"><Close /></el-icon>
+            <el-icon v-else-if="node.status === 'pending'" size="16"><Loading /></el-icon>
+            <el-icon v-else size="16"><Clock /></el-icon>
+          </div>
+          <div v-if="idx < nodes.length - 1" class="flow-step-line"></div>
         </div>
-        <div v-if="task.comment" class="node-comment">审批意见：{{ task.comment }}</div>
-      </el-timeline-item>
-    </el-timeline>
+        <div class="flow-step-right">
+          <div class="flow-step-title">
+            {{ node.nodeName }}
+            <span v-if="node.statusLabel" class="status-tag" :class="'status-' + node.status">{{ node.statusLabel }}</span>
+          </div>
+          <div v-if="node.roleName" class="flow-step-approvers">
+            <span class="approver-tag">{{ node.roleName }}</span>
+          </div>
+          <div v-if="node.comment" class="flow-step-comment">
+            <span class="comment-label">审批意见：</span><span class="comment-text">{{ node.comment }}</span>
+          </div>
+          <div v-if="node.time" class="flow-step-time">{{ node.time }}</div>
+        </div>
+      </div>
+    </div>
 
     <el-empty v-else description="暂无审批记录" :image-size="60" />
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { Loading } from '@element-plus/icons-vue'
+import { ref, computed, watch } from 'vue'
+import { Loading, User, Check, Close, Clock } from '@element-plus/icons-vue'
 import { approvalApi } from '../api'
 
 const props = defineProps({
@@ -66,13 +76,40 @@ const statusTagType = (s) => ({
 const taskStatusMap = {
   PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', CANCELLED: '已作废'
 }
-const taskStatusName = (s) => taskStatusMap[s] || s
-const taskTagType = (s) => ({
-  PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'info'
-}[s] || 'info')
-const dotType = (task) => ({
-  PENDING: 'primary', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'info'
-}[task.status] || 'info')
+
+// 将后端「流程 + 任务」转换为 hr 同款竖向流程节点（首节点为发起人）
+const nodes = computed(() => {
+  const list = []
+  list.push({ type: 0, nodeName: '发起申请', status: 'start' })
+  for (const t of tasks.value) {
+    const status = mapTaskStatus(t.status)
+    list.push({
+      type: 1,
+      nodeName: t.nodeName || '审批节点',
+      roleName: roleName(t.approverRole),
+      status,
+      statusLabel: taskStatusMap[t.status] || t.status,
+      comment: t.comment || '',
+      time: t.handledTime || ''
+    })
+  }
+  return list
+})
+
+const mapTaskStatus = (s) => {
+  if (s === 'APPROVED') return 'approved'
+  if (s === 'REJECTED') return 'rejected'
+  if (s === 'PENDING') return 'pending'
+  return 'waiting'
+}
+
+const getIconClass = (node) => {
+  if (node.type === 0) return 'icon-start'
+  if (node.status === 'approved') return 'icon-approved'
+  if (node.status === 'rejected') return 'icon-rejected'
+  if (node.status === 'pending') return 'icon-pending'
+  return 'icon-waiting'
+}
 
 const fetchDetail = async () => {
   if (!props.flowId) {
@@ -120,22 +157,97 @@ defineExpose({ refresh: fetchDetail })
   font-size: 12px;
   margin-left: 8px;
 }
-.timeline-body { padding-left: 4px; }
-.node-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.node-name { font-weight: 500; color: #1f2d3d; }
-.role-tag { margin-left: 2px; }
-.node-comment {
-  margin-top: 6px;
-  color: #606266;
-  font-size: 13px;
-}
 .loading-tip {
   color: #909399;
   font-size: 13px;
   padding: 12px 0;
+}
+
+/* 审批流程竖向样式（对齐 hr- 仓库 ApprovalTimeline） */
+.approval-flow-vertical {
+  padding: 8px 0;
+}
+.flow-step {
+  display: flex;
+  min-height: 60px;
+}
+.flow-step-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
+  flex-shrink: 0;
+}
+.flow-step-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e6f4ff;
+  color: #409eff;
+  flex-shrink: 0;
+}
+.flow-step-icon.icon-start { background: #e6fffb; color: #13c2c2; }
+.flow-step-icon.icon-approved { background: #f6ffed; color: #52c41a; }
+.flow-step-icon.icon-pending { background: #fff7e6; color: #fa8c16; }
+.flow-step-icon.icon-waiting { background: #f5f5f5; color: #999; }
+.flow-step-icon.icon-rejected { background: #fff1f0; color: #f5222d; }
+.flow-step-line {
+  width: 2px;
+  flex: 1;
+  background: #e8e8e8;
+  margin: 4px 0;
+}
+.flow-step-right {
+  flex: 1;
+  padding-left: 12px;
+  padding-bottom: 16px;
+}
+.flow-step-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  line-height: 32px;
+}
+.flow-step-approvers {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.approver-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  background: #f0f2f5;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
+.status-tag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+.status-tag.status-approved { background: #f6ffed; color: #52c41a; }
+.status-tag.status-pending { background: #fff7e6; color: #fa8c16; }
+.status-tag.status-waiting { background: #f5f5f5; color: #999; }
+.status-tag.status-rejected { background: #fff1f0; color: #f5222d; }
+.flow-step-comment {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.comment-label { color: #999; margin-right: 4px; }
+.comment-text { color: #666; }
+.flow-step-time {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #999;
 }
 </style>

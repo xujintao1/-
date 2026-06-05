@@ -68,4 +68,10 @@ public class ApprovalController {
         approvalService.delete(flowId);
         return Result.ok();
     }
+
+    /** 重新同步（状态回调的手动触发，以 OA 端状态为准校准本地流程，仅管理员） */
+    @PostMapping("/flows/{flowId}/resync")
+    public Result<String> resync(@PathVariable Long flowId) {
+        return Result.ok(approvalService.resync(flowId));
+    }
 }

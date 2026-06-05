@@ -20,9 +20,10 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="140" />
-      <el-table-column label="操作" width="120">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 'ACTIVE'" size="small" type="danger" @click="onCancel(row)">取消</el-button>
+          <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
+          <el-button v-if="row.status === 'ACTIVE'" link type="danger" size="small" @click="onCancel(row)">取消</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -54,6 +55,25 @@
         <el-button type="primary" @click="onSave">提交</el-button>
       </template>
     </el-dialog>
+
+    <!-- 认购单详情（状态头部 + 认购信息，对齐 hr- 详情布局） -->
+    <el-dialog v-model="detailVisible" title="认购单详情" width="600px">
+      <div v-if="detailRow">
+        <div class="detail-header">
+          <el-tag :type="statusMap[detailRow.status]?.type" size="large">{{ statusMap[detailRow.status]?.text || detailRow.status }}</el-tag>
+          <span class="meta">认购单号：{{ detailRow.subscriptionNo }}</span>
+          <span class="meta" v-if="detailRow.createTime">创建时间：{{ fmtTime(detailRow.createTime) }}</span>
+        </div>
+        <el-descriptions :column="2" border size="small" style="margin-top: 14px">
+          <el-descriptions-item label="客户">{{ detailRow.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="厂房单元">{{ detailRow.unitNo }}</el-descriptions-item>
+          <el-descriptions-item label="定金(元)">{{ fmt(detailRow.deposit) }}</el-descriptions-item>
+          <el-descriptions-item label="成交总价(元)">{{ fmt(detailRow.totalPrice) }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ statusMap[detailRow.status]?.text || detailRow.status }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ detailRow.remark || '-' }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -76,8 +96,22 @@ const dialogVisible = ref(false)
 const form = reactive({})
 const customers = ref([])
 const units = ref([])
+const detailVisible = ref(false)
+const detailRow = ref(null)
 
 const fmt = (v) => (v === undefined || v === null) ? 0 : Number(v).toLocaleString('zh-CN')
+const fmtTime = (t) => {
+  if (!t) return '-'
+  if (Array.isArray(t)) {
+    const [y, m, d, h = 0, min = 0, s = 0] = t
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return String(t).replace('T', ' ').substring(0, 19)
+}
+const openDetail = (row) => {
+  detailRow.value = row
+  detailVisible.value = true
+}
 const selectedTotal = computed(() => {
   const u = units.value.find((x) => x.id === form.factoryUnitId)
   return u ? u.totalPrice : 0
@@ -126,4 +160,14 @@ onMounted(load)
 
 <style scoped>
 .toolbar { display: flex; gap: 10px; }
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detail-header .meta {
+  color: #606266;
+  font-size: 13px;
+}
 </style>

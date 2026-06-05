@@ -44,6 +44,7 @@ public class ApprovalService {
     private final ContractMapper contractMapper;
     private final FactoryUnitMapper factoryUnitMapper;
     private final ApprovalGatewayFactory gatewayFactory;
+    private final OaApiClient oaApiClient;
 
     @Value("${app.approval.chain:SALES_MANAGER,FINANCE,LEGAL}")
     private String approvalChain;
@@ -52,12 +53,14 @@ public class ApprovalService {
                            ApprovalFlowMapper flowMapper,
                            ContractMapper contractMapper,
                            FactoryUnitMapper factoryUnitMapper,
-                           ApprovalGatewayFactory gatewayFactory) {
+                           ApprovalGatewayFactory gatewayFactory,
+                           OaApiClient oaApiClient) {
         this.taskMapper = taskMapper;
         this.flowMapper = flowMapper;
         this.contractMapper = contractMapper;
         this.factoryUnitMapper = factoryUnitMapper;
         this.gatewayFactory = gatewayFactory;
+        this.oaApiClient = oaApiClient;
     }
 
     /** 当前登录用户的审批待办 */
@@ -244,6 +247,56 @@ public class ApprovalService {
                 contractMapper.updateById(contract);
             }
         }
+    }
+
+    /**
+     * 重新同步（状态回调的手动触发，仅管理员）。
+     *
+     * <p>以 OA 端真实状态为准重新校准本地审批流：拉取 OA 审批进度，
+     * 映射状态后复用 {@link #handleStatusCallback} 的逻辑驱动本地流程/合同。
+     * 与 hr- 仓库「重新同步」一致：内置审批流无需同步、未配置 OA 或无外部实例时安全返回提示。
+     *
+     * @return 面向前端的同步结果说明
+     */
+    @Transactional
+    public String resync(Long flowId) {
+        ApprovalFlow flow = requireFlow(flowId);
+        LoginUser user = SecurityUtil.currentUser();
+        if (!user.getRoleCodes().contains("ADMIN")) {
+            throw new BusinessException(403, "仅管理员可执行重新同步");
+        }
+        if (!"oa".equalsIgnoreCase(flow.getGateway())) {
+            return "内置审批流无需与 OA 同步";
+        }
+        if (flow.getExternalNo() == null || flow.getExternalNo().isBlank()) {
+            return "该流程无外部 OA 实例号，无法同步";
+        }
+        if (!oaApiClient.isConfigured()) {
+            return "未配置 OA 地址，无法同步";
+        }
+        Map<String, Object> progress = oaApiClient.getApprovalProgress(flow.getExternalNo());
+        if (progress == null) {
+            return "OA 未返回该流程进度（可能已在 OA 端删除）";
+        }
+        String oaStatus = firstStr(progress, "status", "oaStatus", "result", "processStatus");
+        String message = firstStr(progress, "message", "comment");
+        String mapped = mapOaStatus(oaStatus);
+        handleStatusCallback(flow.getExternalNo(), oaStatus, message);
+        return switch (mapped) {
+            case "APPROVED" -> "已同步：OA 端已通过，本地流程已更新";
+            case "REJECTED" -> "已同步：OA 端已驳回，本地流程已更新";
+            default -> "已同步：OA 端仍在审批中";
+        };
+    }
+
+    private String firstStr(Map<String, Object> body, String... keys) {
+        for (String key : keys) {
+            Object v = body.get(key);
+            if (v != null && !v.toString().isBlank()) {
+                return v.toString();
+            }
+        }
+        return null;
     }
 
     /**
